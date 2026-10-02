@@ -1,11 +1,20 @@
-import { appendFileSync, mkdirSync } from "node:fs";
+import {
+	appendFileSync,
+	mkdirSync,
+	readdirSync,
+	rmSync,
+	statSync,
+} from "node:fs";
 import { join } from "node:path";
 
 const LOG_DIR = "data/logs";
+const LOG_RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
 
 mkdirSync(LOG_DIR, { recursive: true });
 
 type Level = "INFO" | "WARN" | "ERROR";
+
+let lastDate: string | undefined;
 
 function pad(n: number) {
 	return String(n).padStart(2, "0");
@@ -21,7 +30,19 @@ function write(level: Level, message: string, error?: unknown) {
 
 	if (level === "ERROR") console.error(text);
 	else console.log(text);
+	if (date !== lastDate) {
+		lastDate = date;
+		deleteOldLogs(now);
+	}
 	appendFileSync(join(LOG_DIR, `${date}.log`), `${text}\n`);
+}
+
+function deleteOldLogs(now: Date) {
+	const cutoff = now.getTime() - LOG_RETENTION_MS;
+	for (const file of readdirSync(LOG_DIR)) {
+		const path = join(LOG_DIR, file);
+		if (file.endsWith(".log") && statSync(path).mtimeMs < cutoff) rmSync(path);
+	}
 }
 
 function describe(error: unknown) {

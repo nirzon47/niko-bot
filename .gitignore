@@ -18,6 +18,9 @@ report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
 # bot data
 data
 
+# terms and privacy policy, published separately
+legal
+
 # dotenv environment variable files
 .env
 .env.development.local
