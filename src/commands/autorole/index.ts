@@ -11,6 +11,7 @@ import {
 	TextInputStyle,
 } from "discord.js";
 import { env } from "../../env";
+import { readJson, writeJson } from "../../storage";
 import type { Command } from "../types";
 import { exempted } from "./config";
 
@@ -136,8 +137,22 @@ export const autorole: Command = {
 	},
 };
 
-const imported = new Set<string>();
-const perkRoles = new Set<string>();
+interface Store {
+	imported: string[];
+	perkRoles: string[];
+}
+
+const STORE_PATH = "data/autorole.json";
+const store = readJson<Store>(STORE_PATH, { imported: [], perkRoles: [] });
+const imported = new Set(store.imported);
+const perkRoles = new Set(store.perkRoles);
+
+function save() {
+	writeJson<Store>(STORE_PATH, {
+		imported: [...imported],
+		perkRoles: [...perkRoles],
+	});
+}
 
 const IMPORT_TIMEOUT_MS = 15 * 60 * 1000;
 const MAX_DESCRIPTION_LENGTH = 4096;
@@ -172,6 +187,7 @@ async function importUsernames(
 	);
 	const before = imported.size;
 	for (const name of found) imported.add(name);
+	save();
 
 	const list = formatNames([...imported]);
 	await submission.reply({
@@ -216,6 +232,7 @@ function formatNames(names: string[]) {
 async function clear(interaction: ChatInputCommandInteraction<"cached">) {
 	const count = imported.size;
 	imported.clear();
+	save();
 	await interaction.reply({
 		content: `🗑️ Cleared ${count} imported usernames.`,
 		flags: MessageFlags.Ephemeral,
@@ -335,6 +352,7 @@ async function addPerkRole(interaction: ChatInputCommandInteraction<"cached">) {
 	}
 
 	perkRoles.add(role.id);
+	save();
 	await interaction.reply({
 		content: `✅ Added ${role} to the perk roles.`,
 		flags: MessageFlags.Ephemeral,
@@ -346,6 +364,7 @@ async function removePerkRole(
 ) {
 	const role = interaction.options.getRole("role", true);
 	const removed = perkRoles.delete(role.id);
+	save();
 	await interaction.reply({
 		content: removed
 			? `✅ Removed ${role} from the perk roles.`
