@@ -11,6 +11,7 @@ import {
 	TextInputStyle,
 } from "discord.js";
 import { env } from "../../env";
+import { log } from "../../logger";
 import { readJson, writeJson } from "../../storage";
 import type { Command } from "../types";
 import { exempted } from "./config";
@@ -188,10 +189,14 @@ async function importUsernames(
 	const before = imported.size;
 	for (const name of found) imported.add(name);
 	save();
+	const added = imported.size - before;
+	log.info(
+		`Imported ${found.length} usernames (${added} new), skipped: ${skipped.join(", ") || "none"}`,
+	);
 
 	const list = formatNames([...imported]);
 	await submission.reply({
-		content: `✅ Found ${found.length}, ${imported.size - before} new\n⏭️ Skipped: ${formatNames(skipped)}`,
+		content: `✅ Found ${found.length}, ${added} new\n⏭️ Skipped: ${formatNames(skipped)}`,
 		embeds: [
 			new EmbedBuilder()
 				.setTitle(`📋 ${imported.size} imported`)
@@ -233,6 +238,7 @@ async function clear(interaction: ChatInputCommandInteraction<"cached">) {
 	const count = imported.size;
 	imported.clear();
 	save();
+	log.info(`Cleared ${count} imported usernames`);
 	await interaction.reply({
 		content: `🗑️ Cleared ${count} imported usernames.`,
 		flags: MessageFlags.Ephemeral,
@@ -267,11 +273,15 @@ async function assign(
 		try {
 			await member.roles.add(role);
 			added++;
+			log.info(`Gave ${role.name} to ${username}`);
 		} catch (error) {
-			console.error(`Failed to add ${role.name} to ${username}:`, error);
+			log.error(`Failed to give ${role.name} to ${username}`, error);
 		}
 	}
 
+	log.info(
+		`Assigned ${role.name} to ${added} members, not found: ${notFound.join(", ") || "none"}`,
+	);
 	await interaction.editReply(
 		`✅ Assigned ${role} to ${added} members.\n❌ Not found: ${formatNames(notFound)}`,
 	);
@@ -309,21 +319,16 @@ async function removeRoles(
 						roleIds.filter((id) => member.roles.cache.has(id)),
 					);
 				} catch (error) {
-					console.error(
-						`Failed to remove roles from ${member.user.tag}:`,
-						error,
-					);
+					log.error(`Failed to remove roles from ${member.user.tag}`, error);
 					return;
 				}
 
+				log.info(`Removed roles from ${member.user.tag}`);
 				// Not awaited, so rate-limited progress messages don't hold up removals
 				channel
 					?.send(`✅ Removed roles from ${member.user.tag}`)
 					.catch((error) =>
-						console.error(
-							`Failed to post progress for ${member.user.tag}:`,
-							error,
-						),
+						log.error(`Failed to post progress for ${member.user.tag}`, error),
 					);
 			}),
 		);
@@ -353,6 +358,7 @@ async function addPerkRole(interaction: ChatInputCommandInteraction<"cached">) {
 
 	perkRoles.add(role.id);
 	save();
+	log.info(`Added perk role ${role.name}`);
 	await interaction.reply({
 		content: `✅ Added ${role} to the perk roles.`,
 		flags: MessageFlags.Ephemeral,
@@ -365,6 +371,7 @@ async function removePerkRole(
 	const role = interaction.options.getRole("role", true);
 	const removed = perkRoles.delete(role.id);
 	save();
+	if (removed) log.info(`Removed perk role ${role.name}`);
 	await interaction.reply({
 		content: removed
 			? `✅ Removed ${role} from the perk roles.`
