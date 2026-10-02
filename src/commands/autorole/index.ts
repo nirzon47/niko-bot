@@ -18,6 +18,11 @@ export const autorole: Command = {
 			subcommand
 				.setName("add")
 				.setDescription("Assign the Dalao role to the configured members"),
+		)
+		.addSubcommand((subcommand) =>
+			subcommand
+				.setName("remove")
+				.setDescription("Remove the Dalao role from everyone"),
 		),
 
 	async execute(interaction) {
@@ -51,6 +56,9 @@ export const autorole: Command = {
 		switch (interaction.options.getSubcommand()) {
 			case "add":
 				await add(interaction, role);
+				break;
+			case "remove":
+				await remove(interaction, role);
 				break;
 		}
 	},
@@ -86,4 +94,54 @@ async function add(
 	await interaction.editReply(
 		`✅ Assigned ${role} to ${added} members.\n❌ Not found: ${notFound.join(", ") || "none"}`,
 	);
+}
+
+const BATCH_SIZE = 10;
+const BATCH_DELAY_MS = 500;
+
+async function remove(
+	interaction: ChatInputCommandInteraction<"cached">,
+	role: Role,
+) {
+	await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+
+	const members = await interaction.guild.members.fetch();
+	const holders = [
+		...members.filter((m) => m.roles.cache.has(role.id)).values(),
+	];
+	const channel = interaction.channel?.isSendable()
+		? interaction.channel
+		: null;
+
+	await interaction.editReply(
+		"⏳ Removing role in batches. Watch the channel for updates.",
+	);
+
+	for (let i = 0; i < holders.length; i += BATCH_SIZE) {
+		const batch = holders.slice(i, i + BATCH_SIZE);
+		await Promise.all(
+			batch.map(async (member) => {
+				try {
+					await member.roles.remove(role);
+				} catch (error) {
+					console.error(
+						`Failed to remove ${role.name} from ${member.user.tag}:`,
+						error,
+					);
+					return;
+				}
+
+				// Not awaited, so rate-limited progress messages don't hold up removals
+				channel
+					?.send(`✅ Removed role from ${member.user.tag}`)
+					.catch((error) =>
+						console.error(
+							`Failed to post progress for ${member.user.tag}:`,
+							error,
+						),
+					);
+			}),
+		);
+		await Bun.sleep(BATCH_DELAY_MS);
+	}
 }
