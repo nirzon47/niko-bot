@@ -1,9 +1,12 @@
 import {
 	type ChatInputCommandInteraction,
+	inlineCode,
 	MessageFlags,
+	ModalBuilder,
 	PermissionFlagsBits,
 	type Role,
 	SlashCommandBuilder,
+	TextInputStyle,
 } from "discord.js";
 import { env } from "../../env";
 import type { Command } from "../types";
@@ -14,6 +17,11 @@ export const autorole: Command = {
 		.setName("autorole")
 		.setDescription("Manage the Dalao role")
 		.setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
+		.addSubcommand((subcommand) =>
+			subcommand
+				.setName("import")
+				.setDescription("Import usernames from a page of Activity Rank's /top"),
+		)
 		.addSubcommand((subcommand) =>
 			subcommand
 				.setName("add")
@@ -54,6 +62,9 @@ export const autorole: Command = {
 		}
 
 		switch (interaction.options.getSubcommand()) {
+			case "import":
+				await importUsernames(interaction);
+				break;
 			case "add":
 				await add(interaction, role);
 				break;
@@ -63,6 +74,66 @@ export const autorole: Command = {
 		}
 	},
 };
+
+const IMPORT_TIMEOUT_MS = 15 * 60 * 1000;
+
+async function importUsernames(
+	interaction: ChatInputCommandInteraction<"cached">,
+) {
+	const customId = `autorole-import-${interaction.id}`;
+	await interaction.showModal(
+		new ModalBuilder()
+			.setCustomId(customId)
+			.setTitle("Import from Activity Rank")
+			.addLabelComponents((label) =>
+				label
+					.setLabel("Paste a page of /top")
+					.setTextInputComponent((input) =>
+						input.setCustomId("top").setStyle(TextInputStyle.Paragraph),
+					),
+			),
+	);
+
+	const submission = await interaction
+		.awaitModalSubmit({
+			filter: (i) => i.customId === customId,
+			time: IMPORT_TIMEOUT_MS,
+		})
+		.catch(() => null);
+	if (!submission) return;
+
+	const { found, skipped } = parseTop(
+		submission.fields.getTextInputValue("top"),
+	);
+	await submission.reply({
+		content: `✅ Found ${found.length}: ${formatNames(found)}\n⏭️ Skipped: ${formatNames(skipped)}`,
+		flags: MessageFlags.Ephemeral,
+	});
+}
+
+const USERNAME_PATTERN = /^[a-z0-9_.]{2,32}$/;
+
+function parseTop(text: string) {
+	const found: string[] = [];
+	const skipped: string[] = [];
+
+	for (const line of text.split("\n")) {
+		const [rank, name] = line.trim().split(/\s+/);
+		if (!rank?.startsWith("#") || !name) continue;
+
+		if (USERNAME_PATTERN.test(name) && !exempted.includes(name)) {
+			found.push(name);
+		} else {
+			skipped.push(name);
+		}
+	}
+
+	return { found, skipped };
+}
+
+function formatNames(names: string[]) {
+	return names.map((name) => inlineCode(name)).join(", ") || "none";
+}
 
 async function add(
 	interaction: ChatInputCommandInteraction<"cached">,
