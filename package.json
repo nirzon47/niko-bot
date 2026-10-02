@@ -5,6 +5,7 @@
 	"private": true,
 	"scripts": {
 		"start": "bun src/index.ts",
+		"deploy": "bun src/deploy-commands.ts",
 		"check": "biome check && tsc --noEmit",
 		"format": "biome format --write"
 	},
