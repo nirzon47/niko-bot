@@ -9,4 +9,5 @@ export const env = {
 	CLIENT_ID: required("CLIENT_ID"),
 	GUILD_ID: required("GUILD_ID"),
 	DALAO_ROLE_ID: required("DALAO_ROLE_ID"),
+	MESSAGE_CONTENT_INTENT: process.env.MESSAGE_CONTENT_INTENT === "true",
 };

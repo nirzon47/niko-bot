@@ -6,7 +6,7 @@ Discord bot built with Bun and discord.js.
 
 1. `bun install`
 2. Copy `.env.example` to `.env` and fill it in.
-3. In the Discord Developer Portal, turn on **Server Members Intent** and **Message Content Intent** for the bot.
+3. In the Discord Developer Portal, turn on **Server Members Intent** for the bot. If you set `MESSAGE_CONTENT_INTENT=true` in `.env`, also turn on **Message Content Intent**, which lets the bot count emojis inside messages.
 4. `bun run deploy` to register the slash commands.
 
 ## Docker
