@@ -6,6 +6,7 @@ import {
 	ModalBuilder,
 	PermissionFlagsBits,
 	type Role,
+	roleMention,
 	SlashCommandBuilder,
 	TextInputStyle,
 } from "discord.js";
@@ -37,6 +38,38 @@ export const autorole: Command = {
 			subcommand
 				.setName("remove")
 				.setDescription("Remove the Dalao role from everyone"),
+		)
+		.addSubcommandGroup((group) =>
+			group
+				.setName("perks")
+				.setDescription("Manage the perk roles that come with Dalao")
+				.addSubcommand((subcommand) =>
+					subcommand
+						.setName("list-roles")
+						.setDescription("List the perk roles"),
+				)
+				.addSubcommand((subcommand) =>
+					subcommand
+						.setName("add-role")
+						.setDescription("Add a role to the perk list")
+						.addRoleOption((option) =>
+							option
+								.setName("role")
+								.setDescription("The role to add")
+								.setRequired(true),
+						),
+				)
+				.addSubcommand((subcommand) =>
+					subcommand
+						.setName("remove-role")
+						.setDescription("Remove a role from the perk list")
+						.addRoleOption((option) =>
+							option
+								.setName("role")
+								.setDescription("The role to remove")
+								.setRequired(true),
+						),
+				),
 		),
 
 	async execute(interaction) {
@@ -67,7 +100,9 @@ export const autorole: Command = {
 			return;
 		}
 
-		switch (interaction.options.getSubcommand()) {
+		const group = interaction.options.getSubcommandGroup();
+		const subcommand = interaction.options.getSubcommand();
+		switch (group ? `${group} ${subcommand}` : subcommand) {
 			case "import":
 				await importUsernames(interaction);
 				break;
@@ -80,11 +115,21 @@ export const autorole: Command = {
 			case "remove":
 				await remove(interaction, role);
 				break;
+			case "perks list-roles":
+				await listPerkRoles(interaction);
+				break;
+			case "perks add-role":
+				await addPerkRole(interaction);
+				break;
+			case "perks remove-role":
+				await removePerkRole(interaction);
+				break;
 		}
 	},
 };
 
 const imported = new Set<string>();
+const perkRoles = new Set<string>();
 
 const IMPORT_TIMEOUT_MS = 15 * 60 * 1000;
 const MAX_DESCRIPTION_LENGTH = 4096;
@@ -255,4 +300,44 @@ async function remove(
 		);
 		await Bun.sleep(BATCH_DELAY_MS);
 	}
+}
+
+async function listPerkRoles(
+	interaction: ChatInputCommandInteraction<"cached">,
+) {
+	const roles = [...perkRoles].map((id) => roleMention(id)).join(", ");
+	await interaction.reply({
+		content: `🎁 Perk roles: ${roles || "none"}`,
+		flags: MessageFlags.Ephemeral,
+	});
+}
+
+async function addPerkRole(interaction: ChatInputCommandInteraction<"cached">) {
+	const role = interaction.options.getRole("role", true);
+	if (!role.editable) {
+		await interaction.reply({
+			content: `❌ I can't manage ${role}. I need Manage Roles, and my highest role must be above it.`,
+			flags: MessageFlags.Ephemeral,
+		});
+		return;
+	}
+
+	perkRoles.add(role.id);
+	await interaction.reply({
+		content: `✅ Added ${role} to the perk roles.`,
+		flags: MessageFlags.Ephemeral,
+	});
+}
+
+async function removePerkRole(
+	interaction: ChatInputCommandInteraction<"cached">,
+) {
+	const role = interaction.options.getRole("role", true);
+	const removed = perkRoles.delete(role.id);
+	await interaction.reply({
+		content: removed
+			? `✅ Removed ${role} from the perk roles.`
+			: `❌ ${role} isn't a perk role.`,
+		flags: MessageFlags.Ephemeral,
+	});
 }
