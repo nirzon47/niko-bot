@@ -11,7 +11,7 @@ import {
 } from "discord.js";
 import { env } from "../../env";
 import type { Command } from "../types";
-import { exempted, usernames } from "./config";
+import { exempted } from "./config";
 
 export const autorole: Command = {
 	data: new SlashCommandBuilder()
@@ -30,8 +30,8 @@ export const autorole: Command = {
 		)
 		.addSubcommand((subcommand) =>
 			subcommand
-				.setName("add")
-				.setDescription("Assign the Dalao role to the configured members"),
+				.setName("assign")
+				.setDescription("Assign the Dalao role to the imported usernames"),
 		)
 		.addSubcommand((subcommand) =>
 			subcommand
@@ -74,8 +74,8 @@ export const autorole: Command = {
 			case "clear":
 				await clear(interaction);
 				break;
-			case "add":
-				await add(interaction, role);
+			case "assign":
+				await assign(interaction, role);
 				break;
 			case "remove":
 				await remove(interaction, role);
@@ -169,19 +169,25 @@ async function clear(interaction: ChatInputCommandInteraction<"cached">) {
 	});
 }
 
-async function add(
+async function assign(
 	interaction: ChatInputCommandInteraction<"cached">,
 	role: Role,
 ) {
+	if (imported.size === 0) {
+		await interaction.reply({
+			content: "❌ Nothing imported yet. Run /autorole import first.",
+			flags: MessageFlags.Ephemeral,
+		});
+		return;
+	}
+
 	await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
 	const members = await interaction.guild.members.fetch();
 	let added = 0;
 	const notFound: string[] = [];
 
-	for (const username of usernames) {
-		if (exempted.includes(username)) continue;
-
+	for (const username of imported) {
 		const member = members.find((m) => m.user.username === username);
 		if (!member) {
 			notFound.push(username);
@@ -197,7 +203,7 @@ async function add(
 	}
 
 	await interaction.editReply(
-		`✅ Assigned ${role} to ${added} members.\n❌ Not found: ${notFound.join(", ") || "none"}`,
+		`✅ Assigned ${role} to ${added} members.\n❌ Not found: ${formatNames(notFound)}`,
 	);
 }
 
