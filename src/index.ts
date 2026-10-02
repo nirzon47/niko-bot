@@ -1,5 +1,12 @@
-import { Client, Events, GatewayIntentBits, MessageFlags } from "discord.js";
+import {
+	Client,
+	Events,
+	GatewayIntentBits,
+	MessageFlags,
+	Partials,
+} from "discord.js";
 import { commands } from "./commands";
+import { trackMessage, trackReaction } from "./commands/emotes/usage";
 import { env } from "./env";
 import { log } from "./logger";
 import { replyToMention } from "./mentions";
@@ -9,7 +16,11 @@ const client = new Client({
 		GatewayIntentBits.Guilds,
 		GatewayIntentBits.GuildMembers,
 		GatewayIntentBits.GuildMessages,
+		GatewayIntentBits.MessageContent,
+		GatewayIntentBits.GuildMessageReactions,
+		GatewayIntentBits.GuildExpressions,
 	],
+	partials: [Partials.Message, Partials.Channel, Partials.Reaction],
 });
 
 client.once(Events.ClientReady, (readyClient) => {
@@ -41,6 +52,8 @@ client.on(Events.InteractionCreate, async (interaction) => {
 });
 
 client.on(Events.MessageCreate, replyToMention);
+client.on(Events.MessageCreate, trackMessage);
+client.on(Events.MessageReactionAdd, trackReaction);
 
 client.on(Events.Error, (error) => log.error("Client error", error));
 client.on(Events.Warn, (message) => log.warn(message));
