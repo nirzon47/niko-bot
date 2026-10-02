@@ -1,5 +1,6 @@
 import {
 	type ChatInputCommandInteraction,
+	EmbedBuilder,
 	inlineCode,
 	MessageFlags,
 	ModalBuilder,
@@ -21,6 +22,11 @@ export const autorole: Command = {
 			subcommand
 				.setName("import")
 				.setDescription("Import usernames from a page of Activity Rank's /top"),
+		)
+		.addSubcommand((subcommand) =>
+			subcommand
+				.setName("clear")
+				.setDescription("Clear the imported usernames"),
 		)
 		.addSubcommand((subcommand) =>
 			subcommand
@@ -65,6 +71,9 @@ export const autorole: Command = {
 			case "import":
 				await importUsernames(interaction);
 				break;
+			case "clear":
+				await clear(interaction);
+				break;
 			case "add":
 				await add(interaction, role);
 				break;
@@ -75,7 +84,10 @@ export const autorole: Command = {
 	},
 };
 
+const imported = new Set<string>();
+
 const IMPORT_TIMEOUT_MS = 15 * 60 * 1000;
+const MAX_DESCRIPTION_LENGTH = 4096;
 
 async function importUsernames(
 	interaction: ChatInputCommandInteraction<"cached">,
@@ -105,8 +117,21 @@ async function importUsernames(
 	const { found, skipped } = parseTop(
 		submission.fields.getTextInputValue("top"),
 	);
+	const before = imported.size;
+	for (const name of found) imported.add(name);
+
+	const list = formatNames([...imported]);
 	await submission.reply({
-		content: `✅ Found ${found.length}: ${formatNames(found)}\n⏭️ Skipped: ${formatNames(skipped)}`,
+		content: `✅ Found ${found.length}, ${imported.size - before} new\n⏭️ Skipped: ${formatNames(skipped)}`,
+		embeds: [
+			new EmbedBuilder()
+				.setTitle(`📋 ${imported.size} imported`)
+				.setDescription(
+					list.length > MAX_DESCRIPTION_LENGTH
+						? `${list.slice(0, MAX_DESCRIPTION_LENGTH - 1)}…`
+						: list,
+				),
+		],
 		flags: MessageFlags.Ephemeral,
 	});
 }
@@ -133,6 +158,15 @@ function parseTop(text: string) {
 
 function formatNames(names: string[]) {
 	return names.map((name) => inlineCode(name)).join(", ") || "none";
+}
+
+async function clear(interaction: ChatInputCommandInteraction<"cached">) {
+	const count = imported.size;
+	imported.clear();
+	await interaction.reply({
+		content: `🗑️ Cleared ${count} imported usernames.`,
+		flags: MessageFlags.Ephemeral,
+	});
 }
 
 async function add(
