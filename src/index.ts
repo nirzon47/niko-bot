@@ -2,9 +2,14 @@ import { Client, Events, GatewayIntentBits, MessageFlags } from "discord.js";
 import { commands } from "./commands";
 import { env } from "./env";
 import { log } from "./logger";
+import { replyToMention } from "./mentions";
 
 const client = new Client({
-	intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers],
+	intents: [
+		GatewayIntentBits.Guilds,
+		GatewayIntentBits.GuildMembers,
+		GatewayIntentBits.GuildMessages,
+	],
 });
 
 client.once(Events.ClientReady, (readyClient) => {
@@ -34,6 +39,8 @@ client.on(Events.InteractionCreate, async (interaction) => {
 		}
 	}
 });
+
+client.on(Events.MessageCreate, replyToMention);
 
 client.on(Events.Error, (error) => log.error("Client error", error));
 client.on(Events.Warn, (message) => log.warn(message));
