@@ -37,7 +37,7 @@ export const autorole: Command = {
 		.addSubcommand((subcommand) =>
 			subcommand
 				.setName("remove")
-				.setDescription("Remove the Dalao role from everyone"),
+				.setDescription("Remove the Dalao and perk roles from everyone"),
 		)
 		.addSubcommandGroup((group) =>
 			group
@@ -69,6 +69,11 @@ export const autorole: Command = {
 								.setDescription("The role to remove")
 								.setRequired(true),
 						),
+				)
+				.addSubcommand((subcommand) =>
+					subcommand
+						.setName("reset-roles")
+						.setDescription("Remove the perk roles from everyone"),
 				),
 		),
 
@@ -113,7 +118,7 @@ export const autorole: Command = {
 				await assign(interaction, role);
 				break;
 			case "remove":
-				await remove(interaction, role);
+				await removeRoles(interaction, [role.id, ...perkRoles]);
 				break;
 			case "perks list-roles":
 				await listPerkRoles(interaction);
@@ -123,6 +128,9 @@ export const autorole: Command = {
 				break;
 			case "perks remove-role":
 				await removePerkRole(interaction);
+				break;
+			case "perks reset-roles":
+				await resetPerkRoles(interaction);
 				break;
 		}
 	},
@@ -255,22 +263,24 @@ async function assign(
 const BATCH_SIZE = 10;
 const BATCH_DELAY_MS = 500;
 
-async function remove(
+async function removeRoles(
 	interaction: ChatInputCommandInteraction<"cached">,
-	role: Role,
+	roleIds: string[],
 ) {
 	await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
 	const members = await interaction.guild.members.fetch();
 	const holders = [
-		...members.filter((m) => m.roles.cache.has(role.id)).values(),
+		...members
+			.filter((m) => roleIds.some((id) => m.roles.cache.has(id)))
+			.values(),
 	];
 	const channel = interaction.channel?.isSendable()
 		? interaction.channel
 		: null;
 
 	await interaction.editReply(
-		"⏳ Removing role in batches. Watch the channel for updates.",
+		"⏳ Removing roles in batches. Watch the channel for updates.",
 	);
 
 	for (let i = 0; i < holders.length; i += BATCH_SIZE) {
@@ -278,10 +288,12 @@ async function remove(
 		await Promise.all(
 			batch.map(async (member) => {
 				try {
-					await member.roles.remove(role);
+					await member.roles.remove(
+						roleIds.filter((id) => member.roles.cache.has(id)),
+					);
 				} catch (error) {
 					console.error(
-						`Failed to remove ${role.name} from ${member.user.tag}:`,
+						`Failed to remove roles from ${member.user.tag}:`,
 						error,
 					);
 					return;
@@ -289,7 +301,7 @@ async function remove(
 
 				// Not awaited, so rate-limited progress messages don't hold up removals
 				channel
-					?.send(`✅ Removed role from ${member.user.tag}`)
+					?.send(`✅ Removed roles from ${member.user.tag}`)
 					.catch((error) =>
 						console.error(
 							`Failed to post progress for ${member.user.tag}:`,
@@ -340,4 +352,18 @@ async function removePerkRole(
 			: `❌ ${role} isn't a perk role.`,
 		flags: MessageFlags.Ephemeral,
 	});
+}
+
+async function resetPerkRoles(
+	interaction: ChatInputCommandInteraction<"cached">,
+) {
+	if (perkRoles.size === 0) {
+		await interaction.reply({
+			content: "❌ No perk roles yet. Add some with /autorole perks add-role.",
+			flags: MessageFlags.Ephemeral,
+		});
+		return;
+	}
+
+	await removeRoles(interaction, [...perkRoles]);
 }
